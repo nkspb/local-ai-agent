@@ -16,6 +16,7 @@ def send_chat_request(messages: list[dict]) -> str:
         "model": MODEL_NAME,
         "messages": messages,
         "stream": False,
+        "format": TopicAssessment.model_json_schema(),
     }
 
     response = requests.post(
