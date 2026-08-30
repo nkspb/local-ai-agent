@@ -1,8 +1,15 @@
 import json
 import requests
 
+from typing import Literal # To limit allowed values
+from pydantic import BaseModel # To validate data types
+
 OLLAMA_CHAT_URL = "http://localhost:11434/api/chat"
 MODEL_NAME = "qwen3:8b"
+
+class TopicAssessment(BaseModel):
+    topic: str
+    difficulty: Literal["beginner", "intermediate", "advanced"]
 
 def send_chat_request(messages: list[dict]) -> str:
     request_body = {
@@ -45,13 +52,16 @@ def main() -> None:
     print(assistant_message)
 
     parsed_response = json.loads(assistant_message)
+    # parsed_response = {
+    #     "topic": "Docker",
+    #     "difficulty": "SO HARD"
+    # }
 
-    print()
-    print("Parsed topic:")
-    print(parsed_response["topic"])
+    validated_response = TopicAssessment.model_validate(parsed_response)
 
-    print("Parsed difficulty:")
-    print(parsed_response["difficulty"])
+    print(validated_response)
+    print(validated_response.topic)
+    print(validated_response.difficulty)
 
 if __name__ == "__main__":
     main()
