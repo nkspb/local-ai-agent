@@ -11,8 +11,24 @@ MODEL_NAME = "qwen3:8b"
 class AgentDecision(BaseModel):
     action: Literal["answer", "use_tool"]
     tool_name: Literal["list_project_files", "read_text_file", "none"]
-    tool_argument: str | None
+    arguments: dict
     reason: str
+
+class ListProjectFilesArguments(BaseModel):
+    pass
+
+class ReadTextFileArguments(BaseModel):
+    filename: str
+
+def execute_tool(tool_name: str, arguments: dict):
+    tool = TOOLS[tool_name]
+
+    arguments_model = tool["arguments_model"]
+    validated_arguments = arguments_model.model_validate(arguments)
+
+    tool_function = tool["function"]
+
+    return tool_function(**validated_arguments.model_dump())
 
 def list_project_files() -> list[str]:
     project_dir = Path.cwd()
@@ -27,6 +43,17 @@ def read_text_file(filename: str) -> str:
     file_path = project_dir / filename
 
     return file_path.read_text(encoding="utf-8")
+
+TOOLS = {
+    "list_project_files": {
+        "function": list_project_files,
+        "arguments_model": ListProjectFilesArguments, 
+    },
+    "read_text_file": {
+        "function": read_text_file,
+        "arguments_model": ReadTextFileArguments,
+    }
+}
 
 def send_chat_request(messages: list[dict]) -> str:
     request_body = {
@@ -66,7 +93,7 @@ def main() -> None:
         },
         {
             "role": "user",
-            "content": "What is a Kubernetes Service?",
+            "content": "Read README.md",
         },
     ]
 
@@ -79,13 +106,20 @@ def main() -> None:
     if decision.action == "answer":
         print("The model decided it can answer directly.")
 
-    elif decision.tool_name == "list_project_files":
-        result = list_project_files()
-        print(result)
+    if decision.action == "use_tool":
+        result = execute_tool(
+            decision.tool_name,
+            decision.arguments,
+        )
 
-    elif decision.tool_name == "read_text_file":
-        result = read_text_file(decision.tool_argument)
         print(result)
+    # elif decision.tool_name == "list_project_files":
+    #     result = list_project_files()
+    #     print(result)
+
+    # elif decision.tool_name == "read_text_file":
+    #     result = read_text_file(decision.tool_argument)
+    #     print(result)
 
     
 
