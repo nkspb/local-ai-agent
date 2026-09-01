@@ -8,6 +8,8 @@ from pathlib import Path
 OLLAMA_CHAT_URL = "http://localhost:11434/api/chat"
 MODEL_NAME = "qwen3:8b"
 
+MAX_AGENT_STEPS = 5
+
 class AgentDecision(BaseModel):
     action: Literal["answer", "use_tool"]
     tool_name: Literal["list_project_files", "read_text_file", "none"]
@@ -95,35 +97,39 @@ def get_final_answer(messages: list[dict]) -> str:
     return response_data["message"]["content"]
 
 def main() -> None:
+    user_input = input("You: ")
+
     messages = [
         {
             "role": "system",
             "content": (
-                "You are an assistent that decides how to handle a user request.\n\n"
+                "You are an assistent that can use tools.\n"
                 "Available tools:\n"
-                "- list_project_files: List files and directories in the current project directory. "
-                "It requires no argument.\n"
-                "- read_text_file: Reads the contents of a text file in the current project directory. "
+                "- list_project_files: List files and directories "
+                "in the current project directory.\n"
+                "- read_text_file: Reads the contents of a text file in the current"
+                "project directory. Requires filename.\n\n"
                 "Its tool_argument must contain the filename.\n\n"
-                "Choose 'answer' if the request can be answered using general knowledge.\n"
-                "Choose 'use_tool' if local project information is required.\n"
-                "If action is 'anwer', set tool_name to 'none' and tool_argument to null."
+                "Use tools when local information is required. "
+                "When you have enough information, choose action='answer'."
             ),
         },
         {
             "role": "user",
-            "content": "What files are currently in my project directory?",
+            "content": user_input,
         },
     ]
 
-    decision = get_agent_decision(messages)
-    print(decision)
+    for step in range(MAX_AGENT_STEPS):
+        decision = get_agent_decision(messages)
 
-    if decision.action == "answer":
-        final_answer = get_final_answer(messages)
-        print(final_answer)
+        print(f"Step {step + 1}: {decision.action}")
+        
+        if decision.action == "answer":
+            final_answer = get_final_answer(messages)
+            print(f"Assistant: {final_answer}")
+            return
 
-    if decision.action == "use_tool":
         result = execute_tool(
             decision.tool_name,
             decision.arguments,
@@ -133,15 +139,14 @@ def main() -> None:
             {
                 "role": "user",
                 "content": (
-                    f"Tool '{decision.tool_name}' returned:\n"
+                    f"Tool result from '{decision.tool_name}':\n"
                     f"{result}\n\n"
-                    "Answer the original request using this result."
+                    "Use this information when deciding the next action."
                 ),
             }
         )
-
-        final_answer = get_final_answer(messages)
-        print(final_answer)
+    print("Agent stopped because it reached the maximum number of steps.")
+    
     # elif decision.tool_name == "list_project_files":
     #     result = list_project_files()
     #     print(result)
