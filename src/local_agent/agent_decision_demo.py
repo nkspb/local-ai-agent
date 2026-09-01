@@ -55,7 +55,7 @@ TOOLS = {
     }
 }
 
-def send_chat_request(messages: list[dict]) -> str:
+def get_agent_decision(messages: list[dict]) -> AgentDecision:
     request_body = {
         "model": MODEL_NAME,
         "messages": messages,
@@ -71,6 +71,25 @@ def send_chat_request(messages: list[dict]) -> str:
 
     response.raise_for_status()
 
+    response_data = response.json()
+    assistant_message = response_data["message"]["content"]
+
+    return AgentDecision.model_validate_json(assistant_message)
+
+def get_final_answer(messages: list[dict]) -> str:
+    request_body = {
+        "model": MODEL_NAME,
+        "messages": messages,
+        "stream": False,
+    }
+
+    response = requests.post(
+        OLLAMA_CHAT_URL,
+        json=request_body,
+        timeout=120,
+    )
+
+    response.raise_for_status()
     response_data = response.json()
 
     return response_data["message"]["content"]
@@ -93,18 +112,16 @@ def main() -> None:
         },
         {
             "role": "user",
-            "content": "Read README.md",
+            "content": "What files are currently in my project directory?",
         },
     ]
 
-    assistant_message = send_chat_request(messages)
-    parsed_response = json.loads(assistant_message)
-
-    decision = AgentDecision.model_validate(parsed_response)
+    decision = get_agent_decision(messages)
     print(decision)
 
     if decision.action == "answer":
-        print("The model decided it can answer directly.")
+        final_answer = get_final_answer(messages)
+        print(final_answer)
 
     if decision.action == "use_tool":
         result = execute_tool(
@@ -112,7 +129,19 @@ def main() -> None:
             decision.arguments,
         )
 
-        print(result)
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    f"Tool '{decision.tool_name}' returned:\n"
+                    f"{result}\n\n"
+                    "Answer the original request using this result."
+                ),
+            }
+        )
+
+        final_answer = get_final_answer(messages)
+        print(final_answer)
     # elif decision.tool_name == "list_project_files":
     #     result = list_project_files()
     #     print(result)
