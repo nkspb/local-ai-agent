@@ -2,7 +2,7 @@ import json
 import requests
 
 from typing import Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from pathlib import Path
 
 OLLAMA_CHAT_URL = "http://localhost:11434/api/chat"
@@ -23,6 +23,9 @@ class ReadTextFileArguments(BaseModel):
     filename: str
 
 def execute_tool(tool_name: str, arguments: dict):
+    if tool_name not in TOOLS:
+        raise ValueError(f"Unknown tool: {tool_name}")
+    
     tool = TOOLS[tool_name]
 
     arguments_model = tool["arguments_model"]
@@ -121,30 +124,47 @@ def main() -> None:
     ]
 
     for step in range(MAX_AGENT_STEPS):
-        decision = get_agent_decision(messages)
-
-        print(f"Step {step + 1}: {decision.action}")
         
+
+        try:
+            decision = get_agent_decision(messages)
+            print(f"Step {step + 1}: {decision.action}")
+        except ValidationError as error:
+            print(f"Invalid agent decision: {error}")
+            return
+       
         if decision.action == "answer":
             final_answer = get_final_answer(messages)
             print(f"Assistant: {final_answer}")
             return
 
-        result = execute_tool(
-            decision.tool_name,
-            decision.arguments,
-        )
+        try:
+            result = execute_tool(
+                decision.tool_name,
+                decision.arguments,
+            )
+            observation = (
+                f"Tool '{decision.tool_name}' returned:\n"
+                f"{result}"
+            )
+
+        except (ValidationError, ValueError, OSError) as error:
+            observation = (
+                f"Tool '{decision.tool_name}' failed:\n"
+                f"{error}"
+            )
+            
 
         messages.append(
             {
                 "role": "user",
                 "content": (
-                    f"Tool result from '{decision.tool_name}':\n"
-                    f"{result}\n\n"
+                    f"{observation}\n\n"
                     "Use this information when deciding the next action."
                 ),
             }
         )
+
     print("Agent stopped because it reached the maximum number of steps.")
     
     # elif decision.tool_name == "list_project_files":
