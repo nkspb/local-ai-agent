@@ -3,8 +3,6 @@ A module for determining which tools exist,
 how their arguments are validated,
 and how the tools are executed
 """
-
-
 from pathlib import Path
 
 from .schemas import (
