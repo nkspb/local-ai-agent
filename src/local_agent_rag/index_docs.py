@@ -9,8 +9,8 @@ from embedding_demo import get_embedding
 # docs directory, chunks size and overlap
 DOCS_DIR = Path("docs")
 
-CHUNK_SIZE = 300
-CHUNK_OVERLAP = 50 # to preserve contexts in adjacent chunks
+CHUNK_SIZE = 600
+CHUNK_OVERLAP = 100 # to preserve contexts in adjacent chunks
 
 def load_documents() -> list[tuple[str, str]]:
     # Loads documents from md files to later split them in chunks
@@ -67,7 +67,7 @@ def main() -> None:
 
     # Create a collection where chunks will be stored
     collection = client.get_or_create_collection(
-        name="devops_docs"
+        name="devops_docs_600"
     )
 
     # Now we need to prepare data structures that will go
