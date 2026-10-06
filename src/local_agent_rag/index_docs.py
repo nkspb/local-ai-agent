@@ -25,6 +25,37 @@ def load_documents() -> list[tuple[str, str]]:
     print("===============================")
     return documents
 
+def split_into_sections(text: str) -> list[tuple[str, str]]:
+    # Splits markdown text into (section_name, section_text) pairs using ## headings
+    sections = []
+    current_section = ""
+    current_lines = []
+    in_code_block = False
+
+    for line in text.splitlines():
+        # headers inside a code block are not real headers
+        if line.startswith("```"):
+            in_code_block = not in_code_block
+
+        if line.startswith("## ") and not in_code_block:
+            # Save the section we were building before starting a new one
+            if current_lines:
+                sections.append((current_section, "\n".join(current_lines)))
+            current_section = line[3:].strip() # '## Docker Compose -> Docker Compose'
+            current_lines = [line] # Keep the heading in the text because it helps embeddings
+        else:
+            current_lines.append(line)
+
+    # The last section has no heading after it, so save it here
+    if current_lines:
+        sections.append((current_section, "\n".join(current_lines)))
+
+    return sections
+
+
+
+
+
 def split_documents(documents: list[tuple[str, str]],) -> list[dict]:
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
