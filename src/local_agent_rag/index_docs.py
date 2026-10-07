@@ -7,6 +7,7 @@ from embedding_demo import get_embedding
 
 # We need to set up data for text splitter to work on:
 # docs directory, chunks size and overlap
+# locate docs relative to the script, not from where it is run
 DOCS_DIR = Path(__file__).resolve().parent / "docs"
 
 CHUNK_SIZE = 600
@@ -15,6 +16,10 @@ CHUNK_OVERLAP = 100 # to preserve contexts in adjacent chunks
 def load_documents() -> list[tuple[str, str]]:
     # Loads documents from md files to later split them in chunks
     # It returns a list where each item is a tuple with document filename and contents
+    # [
+    # ("docker.md", "# Docker\n\n## Images and containers\n..."),
+    # ("kubernetes.md", "..."),
+    # ]
     documents = []
 
     for path in DOCS_DIR.glob("*.md"):
@@ -27,6 +32,8 @@ def load_documents() -> list[tuple[str, str]]:
 
 def split_into_sections(text: str) -> list[tuple[str, str]]:
     # Splits markdown text into (section_name, section_text) pairs using ## headings
+    # It goes through each line one by one and when encounters a new heading, saves 
+    # the previous section and starts the next one
     sections = []
     current_section = ""
     current_lines = [] # lines collection for the current section
@@ -38,7 +45,7 @@ def split_into_sections(text: str) -> list[tuple[str, str]]:
             in_code_block = not in_code_block
 
         if line.startswith("## ") and not in_code_block:
-            # Save the section we were building before starting a new one
+            # On second encounter it means we now need to save the contents of current section
             if current_lines:
                 sections.append((current_section, "\n".join(current_lines)))
             current_section = line[3:].strip() # '## Docker Compose -> Docker Compose'
@@ -46,6 +53,7 @@ def split_into_sections(text: str) -> list[tuple[str, str]]:
             # and start collecting lines again
             current_lines = [line] 
         else:
+            # This part runs for every ordinary text within a section
             current_lines.append(line)
 
     # The last section has no heading after it, so save it here
