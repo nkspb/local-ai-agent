@@ -45,6 +45,7 @@ def main() -> None:
         print(f"Result {index}")
         print(f"Distance: {distance}")
         print(f"Source: {metadata['source']}")
+        print(f"Section: {metadata['section']}")
         print(document)
         print("-" * 60)
 

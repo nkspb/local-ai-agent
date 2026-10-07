@@ -7,7 +7,7 @@ from embedding_demo import get_embedding
 
 # We need to set up data for text splitter to work on:
 # docs directory, chunks size and overlap
-DOCS_DIR = Path("docs")
+DOCS_DIR = Path(__file__).resolve().parent / "docs"
 
 CHUNK_SIZE = 600
 CHUNK_OVERLAP = 100 # to preserve contexts in adjacent chunks
@@ -29,7 +29,7 @@ def split_into_sections(text: str) -> list[tuple[str, str]]:
     # Splits markdown text into (section_name, section_text) pairs using ## headings
     sections = []
     current_section = ""
-    current_lines = []
+    current_lines = [] # lines collection for the current section
     in_code_block = False
 
     for line in text.splitlines():
@@ -42,7 +42,9 @@ def split_into_sections(text: str) -> list[tuple[str, str]]:
             if current_lines:
                 sections.append((current_section, "\n".join(current_lines)))
             current_section = line[3:].strip() # '## Docker Compose -> Docker Compose'
-            current_lines = [line] # Keep the heading in the text because it helps embeddings
+            # Keep the heading in the text because it helps embeddings
+            # and start collecting lines again
+            current_lines = [line] 
         else:
             current_lines.append(line)
 
@@ -65,18 +67,19 @@ def split_documents(documents: list[tuple[str, str]],) -> list[dict]:
     chunks = []
 
     for filename, text in documents:
-        split_texts = splitter.split_text(text)
+        index = 0
 
-        # Enumerate is used to iterate over any itterable and returns index + value
-        # Itterable is any object that can return its elements one at a time
-        for index, chunk_text in enumerate(split_texts):
-            chunks.append(
-                {
-                    "id": f"{filename}-{index}",
-                    "text": chunk_text,
-                    "source": filename,
-                }
-            )
+        for section, section_text in split_into_sections(text):
+            for chunk_text in splitter.split_text(section_text):
+                chunks.append(
+                    {
+                        "id": f"{filename}-{index}",
+                        "text": chunk_text,
+                        "source": filename,
+                        "section": section,
+                    }
+                )
+                index += 1
 
     return chunks
 
@@ -118,6 +121,7 @@ def main() -> None:
         metadatas.append(
             {
                 "source": chunk["source"],
+                "section": chunk["section"]
             }
         )
 
