@@ -4,6 +4,7 @@ from embedding_demo import get_embedding
 
 VECTOR_STORE_PATH = "vector_store"
 COLLECTION_NAME = "devops_docs_600"
+MAX_DISTANCE = 0.7
 
 def main() -> None:
     # Create Chroma persistent client to save data to disk
@@ -33,21 +34,55 @@ def main() -> None:
         ],
     )
 
-    # We need to extract the reply for index 0
-    documents = results["documents"][0]
-    metadatas = results["metadatas"][0]
-    distances = results["distances"][0]
+    # # We need to extract the reply for index 0
+    # documents = results["documents"][0]
+    # metadatas = results["metadatas"][0]
+    # distances = results["distances"][0]
 
-    for index, (document, metadata,distance) in enumerate(
-        zip(documents, metadatas, distances),
-        start=1,
+    # for index, (document, metadata,distance) in enumerate(
+    #     zip(documents, metadatas, distances),
+    #     start=1,
+    # ):
+    #     print(f"Result {index}")
+    #     print(f"Distance: {distance}")
+    #     print(f"Source: {metadata['source']}")
+    #     print(f"Section: {metadata['section']}")
+    #     print(document)
+    #     print("-" * 60)
+    relevant_items = []
+
+    for document, metadata, distance in zip(
+        documents,
+        metadatas,
+        distances,
     ):
-        print(f"Result {index}")
-        print(f"Distance: {distance}")
-        print(f"Source: {metadata['source']}")
-        print(f"Section: {metadata['section']}")
-        print(document)
-        print("-" * 60)
+        if distance <= MAX_DISTANCE:
+            relevant_items.append({
+                "document": document,
+                "metadata": metadata,
+                "distance": distance,
+            }
+        )
+
+    if not relevant_items:
+        print("No sufficiently relevant information was found.")
+        return
+
+    context_parts = []
+
+    for item in relevant_items:
+        document = item["document"]
+        metadata = item["metadata"]
+
+        context_parts.append(
+            (
+                f"[Source: {metadata['source']} |"
+                f"Section: {metadata['section']}]\n"
+                f"{document}"
+            )
+        )
+
+    context = "\n\n".join(context_parts)
 
 if __name__ == "__main__":
     main()
