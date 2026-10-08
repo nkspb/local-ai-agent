@@ -1,20 +1,29 @@
+"""
+First part of RAG workflow - it turns documents into chunks, embeds them
+and stores in a database.
+
+Workflow:
+docs/*.md  →  load  →  split by "## " headings  →  split into ~600-char chunks
+           →  embed each chunk (Ollama)  →  save to Chroma (vector_store/)
+"""
 from pathlib import Path
 
 import chromadb
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from embedding_demo import get_embedding
+from embedding_demo import get_embedding # used to send text to Ollama embed model
 
 # We need to set up data for text splitter to work on:
 # docs directory, chunks size and overlap
 # locate docs relative to the script, not from where it is run
+# __file__ is the path to this script
 DOCS_DIR = Path(__file__).resolve().parent / "docs"
 
-CHUNK_SIZE = 600
+CHUNK_SIZE = 600 # characters (not tokens)
 CHUNK_OVERLAP = 100 # to preserve contexts in adjacent chunks
 
 def load_documents() -> list[tuple[str, str]]:
-    # Loads documents from md files to later split them in chunks
+    # Loads documents from md files to later split them into chunks
     # It returns a list where each item is a tuple with document filename and contents
     # [
     # ("docker.md", "# Docker\n\n## Images and containers\n..."),
@@ -31,13 +40,15 @@ def load_documents() -> list[tuple[str, str]]:
     return documents
 
 def split_into_sections(text: str) -> list[tuple[str, str]]:
-    # Splits markdown text into (section_name, section_text) pairs using ## headings
-    # It goes through each line one by one and when encounters a new heading, saves 
-    # the previous section and starts the next one
+    """
+    Splits markdown text into (section_name, section_text) pairs using ## headings
+    It goes through each line one by one and when encounters a new heading, saves 
+    the previous section and starts the next one
+    """
     sections = []
-    current_section = ""
-    current_lines = [] # lines collection for the current section
-    in_code_block = False
+    current_section = "" # name of the section we're inside right now
+    current_lines = [] # lines collected for that section so far
+    in_code_block = False # are we inside a ``` block?
 
     for line in text.splitlines():
         # headers inside a code block are not real headers
@@ -73,6 +84,14 @@ def split_documents(documents: list[tuple[str, str]],) -> list[dict]:
     )
 
     chunks = []
+    # Each chunk becomes a dictionary
+    # {
+    #     "id": "docker.md-3",              # unique: filename + running number
+    #     "text": "## Dockerfile basics\n\nEach instruction ...",
+    #     "source": "docker.md",            # which file it came from
+    #     "section": "Dockerfile basics",   # which heading it was under
+    # }
+
 
     for filename, text in documents:
         index = 0
@@ -104,7 +123,7 @@ def main() -> None:
 
     # Create Chroma client that stores data to disk
     client = chromadb.PersistentClient(
-        path="vector_store"
+        path=Path(__file__).resolve().parent / "vector_store"
     )
 
     # Create a collection where chunks will be stored
@@ -120,6 +139,10 @@ def main() -> None:
     metadatas = []
 
     # Fill in the collection with chunks:
+    # ids        = ["docker.md-0", "docker.md-1", ...]
+    # texts      = ["# Docker", "## Images and containers ...", ...]
+    # embeddings = [[0.012, -0.33, ...], [...], ...]   # one Ollama call per chunk
+    # metadatas  = [{"source": "docker.md", "section": ""}, ...
     for chunk in chunks:
         ids.append(chunk["id"])
         texts.append(chunk["text"])
